@@ -1,0 +1,39 @@
+Statement {
+   Source_File_Name = "test_preprocessed.c",
+   Function_Name = "if_statement",
+   Line_Number = 961,
+   Array_Index = 0,
+   Full_Coverage_Achieved = "No",
+}
+MCDC {
+   Source_File_Name = "test_preprocessed.c",
+   Function_Name = "if_statement",
+   Simplified_Expression = "c1 && (c2 || c3)",
+   Actual_Expression = [=[a && (b || c)]=],
+   Array_Index = 1,
+   Number_Of_Conditions = 3,
+   Conditions_Covered = 0,
+   Full_Coverage_Achieved = "No",
+   Line_Number = 961,
+   Covered_Conditions = {},
+   Deficient_Conditions = {},
+   Rows = {
+      {Row_ID = 1, Values = "F X X", Logic = false, Found = "No"},
+      {Row_ID = 2, Values = "T F F", Logic = false, Found = "No"},
+      {Row_ID = 3, Values = "T F T", Logic = true,  Found = "No"},
+      {Row_ID = 4, Values = "T T X", Logic = true,  Found = "No"},
+   },
+   Pairs = {
+      {Condition = "c1", True_Row = 3, False_Row = 1, Found = "No"},
+      {Condition = "c1", True_Row = 4, False_Row = 1, Found = "No"},
+      {Condition = "c2", True_Row = 4, False_Row = 2, Found = "No"},
+      {Condition = "c3", True_Row = 3, False_Row = 2, Found = "No"},
+   },
+}
+Statement {
+   Source_File_Name = "test_preprocessed.c",
+   Function_Name = "if_statement",
+   Line_Number = 963,
+   Array_Index = 5,
+   Full_Coverage_Achieved = "No",
+}

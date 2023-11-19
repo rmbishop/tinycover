@@ -1,0 +1,4 @@
+Source_File_Name,Function_Name,Line_Number,Coverage_Type,Array_Index,Full_Coverage_Achieved,Simplified_Expression,Number_Of_Conditions,Conditions_Covered,Covered_Conditions,Deficient_Conditions
+test_preprocessed.c,if_statement,961,Statement,0,Yes,,,,,,
+test_preprocessed.c,if_statement,961,MCDC,1,No,c1 && (c2 || c3),3,1,c2,c1 c3
+test_preprocessed.c,if_statement,963,Statement,5,Yes,,,,,,
