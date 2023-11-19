@@ -143,3 +143,6 @@ tinycover can be used to instrument c source code for statement, decision, and m
 Open Source code that this project uses:  
 lua 5.4.6
 
+# Todo
+1. Lots of testing and associated feedback desired, on both Windows and Linux.
+
