@@ -882,7 +882,7 @@ insert_close_bracket = function()
 
    --Go back until you reach the first thing that isn't whitespace
    while(true) do
-      if((nil == (InstrumentedText[start_index]:find("[^%s]"))) or --if text is just whitespace, go back
+      if((nil == (InstrumentedText[start_index]:find("[^%s\\]"))) or --if text is just whitespace, go back
          (nil ~= InstrumentedText[start_index]:find("^%s-#"))) then --if the text starts with a #
            start_index = start_index - 1     
      else
