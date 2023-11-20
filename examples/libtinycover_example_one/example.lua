@@ -4,9 +4,11 @@ local c_text = [[
 
 int f1()
 {
-  int x = 0;
-  if(1)
-    a = "hello"\
+  int r = 0;
+  if(a && b)
+  {
+    return 0;
+  }
 }
 ]]
 local output = io.open("arbitrary_name_for_c_file.c","w")
