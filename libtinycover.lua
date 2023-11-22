@@ -3633,6 +3633,15 @@ statement = function(tok)
       token, inner_token_list = label_statement(token); table.insert(token_list,inner_token_list)  
    elseif(token.v == "_Pragma") or word_matches(token,"__pragma") then     
       token, inner_token_list = pragma_operator(token);table.insert(token_list, inner_token_list)        
+   elseif(token.v == "__try") then    
+      token = at(token_list,token)      
+   elseif(token.v == "__finally") then    
+      token = at(token_list,token)        
+   elseif(token.v == "__except") then    
+      token = at(token_list,token)      
+      token = at(token_list,token, Tokens.TOK_OPENPAREN)   
+      token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)          
+      token = at(token_list,token, Tokens.TOK_CLOSEPAREN)   
    else 
       insert_statement_coverage_command(token_list, token.line_number, token.function_name)
       token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)   
