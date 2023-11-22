@@ -2583,10 +2583,11 @@ primary_expression = function(tok)
             token = at(token_list,token,Tokens.TOK_CLOSEPAREN) 
          end 
       end
+   elseif(token.v == "__pragma") then     
+      token, inner_token_list = pragma_operator(token,nil); table.insert(token_list,inner_token_list) 
    elseif(token.v == "__builtin_va_arg") then
       token, inner_token_list = builtin_va_arg(token,nil); table.insert(token_list,inner_token_list) 
    elseif(token.v == "__builtin_convertvector") then
-
       --use builtin_va_arg too, just to consume the function call
       token, inner_token_list = builtin_va_arg(token,nil); table.insert(token_list,inner_token_list)       
    elseif(token.v == "__builtin_offsetof") then
