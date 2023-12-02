@@ -88,7 +88,7 @@ local COMMA_EXPRESSION = 61
 local CONDITIONAL_EXPRESSION = 62
 local INSERT_STATEMENT_COVERAGE = 63
 local COMPOUND_STATEMENT_WITHIN_EXPRESSION = 65
-local RELATIONAL_EXPRESSION = 65
+local RELATIONAL_EXPRESSION = 66
 
 local TokenTextDebug = {}
 TokenTextDebug[Tokens.TOK_NUMBER] = ""
@@ -186,8 +186,8 @@ local end_of_file
 local text
 local sharptext
 local evaluate_instrumentation_commands
-local remove_inner_boolean_expressions
-local remove_inner_relational_expressions
+local set_inner_boolean_expressions
+local set_inner_relational_expressions
 local find_exclamation_mark_operators
 local typeof
 local enum
@@ -257,6 +257,7 @@ local external_declaration
 local add_idents
 local initialize_globals
 local has_child_boolean_expression
+local has_child_relational_expression
 local parse_c_text
 local insert_statement_coverage
 local bor
@@ -279,7 +280,6 @@ Decision {
    },]] .. "\n"
    
    table_text = table_text .. "}\n"
-
    table.insert(CoverageResults,table_text)
 end
 
@@ -778,6 +778,7 @@ ExpressionStack.push = function(self,expression, line_number, file_name, functio
       offset_index = 1,
       condition_index = 1,
       condition_count = #expression_info.truth_table[1].true_false_values,
+      prefix_expression = expression,
       infix_expression = "",
       actual_expression = "",
       line_number = line_number,
@@ -955,7 +956,8 @@ end
 start_boolean_expression = function(prefix_expression, line_number, file_name, function_name, decision_coverage)
    expression_stack:push(prefix_expression, line_number, file_name, function_name, decision_coverage)
    local stack_top = expression_stack:get_stack_top()
-   if(#prefix_expression == 1 or decision_coverage) then
+   _,c = prefix_expression:gsub("c","")
+   if((c == 1) or decision_coverage) then
       write("INST_SINGLE(" .. expression_stack.stack_top-1 .. "," ..
       stack_top.coverage_storage_array_index .. "," .. "(")      
    else
@@ -970,21 +972,34 @@ exclamation_mark_operator = function()
    expression_stack:add_to_actual_expression("!")
 end   
 
-open_expression_parens = function()
+open_expression_parens = function(coverage_enabled)
    write("(")
-   expression_stack:add_to_infix_expression("(")
-   expression_stack:add_to_actual_expression("(")
+   if(coverage_enabled) then
+      local stack_top = expression_stack:get_stack_top()
+      _,c = stack_top.prefix_expression:gsub("c","")
+      if(c > 1) then
+         expression_stack:add_to_infix_expression("(")
+      end
+      expression_stack:add_to_actual_expression("(")
+   end
 end
 
-close_expression_parens = function()
+close_expression_parens = function(coverage_enabled)
    write(")")
-   expression_stack:add_to_infix_expression(")")
-   expression_stack:add_to_actual_expression(")")
+   if(coverage_enabled) then
+      local stack_top = expression_stack:get_stack_top()
+      _,c = stack_top.prefix_expression:gsub("c","")
+      if(c > 1) then
+         expression_stack:add_to_infix_expression(")")
+      end   
+      expression_stack:add_to_actual_expression(")")
+   end
 end
- 
+
 end_boolean_expression = function(prefix_expression, decision_coverage)
    write("))")
-   if(#prefix_expression == 1) then
+   _,c = prefix_expression:gsub("c","")
+   if(c == 1) then
       expression_stack:add_to_infix_expression("c1")
    end
    if(decision_coverage) then
@@ -1169,7 +1184,6 @@ end
 
 end_operand = function(decision_coverage) 
    local condition_index = expression_stack:get_condition_index()
-   local condition_count = expression_stack:get_condition_count()
    local simplified_condition_name = "c" .. condition_index
    expression_stack:add_to_infix_expression(simplified_condition_name)
    expression_stack:increment_condition_index()
@@ -1215,6 +1229,7 @@ evaluate_instrumentation_commands = function(token_list)
          (RELATIONAL_EXPRESSION == list[i].expression_type)) then
          --We must be inside of a function
          if(list[i].function_name ~= nil) then
+            
             if(list[i].coverage_enabled and (list[i].mcdc_coverage or list[i].decision_coverage)) then
                start_boolean_expression(list[i].prefix_expression, 
                   list[i].line_number,
@@ -1224,7 +1239,6 @@ evaluate_instrumentation_commands = function(token_list)
             end
          end
          evaluate_instrumentation_commands(list[i])
-
          --We must be inside of a function
          if(list[i].function_name ~= nil) then         
             if(list[i].coverage_enabled and (list[i].mcdc_coverage or list[i].decision_coverage)) then
@@ -1280,9 +1294,9 @@ evaluate_instrumentation_commands = function(token_list)
          elseif(list[i].t == Tokens.TOK_TAB) then
             tab(list[i].v)              
          elseif(list[i].t == OPEN_EXPRESSION_PARENS) then
-            open_expression_parens()           
+            open_expression_parens(list[i].coverage_enabled)        
          elseif(list[i].t == CLOSE_EXPRESSION_PARENS) then
-            close_expression_parens()                        
+            close_expression_parens(list[i].coverage_enabled)        
          elseif(list[i].t == START_OF_FILE) then
              start_of_file()           
          elseif(list[i].t == END_OF_FILE) then
@@ -1327,14 +1341,32 @@ insert_statement_coverage_command = function(token_list,line_number,function_nam
       statement_coverage = StatementCoverage
    })   
 end
-
-remove_inner_boolean_expressions = function(token_list)
-   local list = token_list   
  
+set_inner_relational_expressions = function(token_list,v)
+   local list = token_list   
    for i=1,#list do
-      local inner_expression_info = nil 
+      if(list[i].expression_type == RELATIONAL_EXPRESSION) then
+         list[i].expression_type = v
+      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or     
+         (list[i].expression_type == BOOLEAN_EXPRESSION) or               
+         (list[i].expression_type == COMMA_EXPRESSION) or                
+         (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
+         (list[i].expression_type == ARRAY_INDEX) or
+         (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
+         (list[i].expression_type == FUNCTION_PARAMETERS)) then
+         --do nothing      
+      elseif(nil == list[i].t) then
+         set_inner_relational_expressions(list[i],v)
+      end
+   end
+end
+
+set_inner_boolean_expressions = function(token_list, v)
+   local list = token_list   
+   
+   for i=1,#list do
       if(list[i].expression_type == BOOLEAN_EXPRESSION) then
-         list[i].expression_type = nil
+         list[i].expression_type = v
       elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
              (list[i].expression_type == COMMA_EXPRESSION) or      
              (list[i].expression_type == RELATIONAL_EXPRESSION) or               
@@ -1344,7 +1376,7 @@ remove_inner_boolean_expressions = function(token_list)
              (list[i].expression_type == FUNCTION_PARAMETERS)) then
          --do nothing
       elseif(nil == list[i].t) then
-         remove_inner_boolean_expressions(list[i])
+         set_inner_boolean_expressions(list[i],v)
       end
    end
  end
@@ -1354,8 +1386,7 @@ remove_inner_boolean_expressions = function(token_list)
 
    for i=1,#list do
       if((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
-         (list[i].expression_type == COMMA_EXPRESSION) or      
-         (list[i].expression_type == RELATIONAL_EXPRESSION) or               
+         (list[i].expression_type == COMMA_EXPRESSION) or                 
          (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
          (list[i].expression_type == ARRAY_INDEX) or
          (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
@@ -1365,25 +1396,6 @@ remove_inner_boolean_expressions = function(token_list)
          list[i].t = EXCLAMATION_MARK_OPERATOR         
       elseif(nil == list[i].t) then
          find_exclamation_mark_operators(list[i])
-      end
-   end
-end
-
-remove_inner_relational_expressions = function(token_list)
-   local list = token_list   
-
-   for i=1,#list do
-      if(list[i].expression_type == RELATIONAL_EXPRESSION) then
-         list[i].expression_type = BOOLEAN_EXPRESSION
-      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
-         (list[i].expression_type == COMMA_EXPRESSION) or                
-         (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
-         (list[i].expression_type == ARRAY_INDEX) or
-         (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
-         (list[i].expression_type == FUNCTION_PARAMETERS)) then
-         --do nothing      
-      elseif(nil == list[i].t) then
-         remove_inner_relational_expressions(list[i])
       end
    end
 end
@@ -2537,6 +2549,26 @@ argument_expression_list = function(tok)
    return token, token_list
 end
  
+set_inner_boolean_expressions = function(token_list, v)
+   local list = token_list   
+   
+   for i=1,#list do
+      if(list[i].expression_type == BOOLEAN_EXPRESSION) then
+         list[i].expression_type = v
+      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
+             (list[i].expression_type == COMMA_EXPRESSION) or      
+             (list[i].expression_type == RELATIONAL_EXPRESSION) or               
+             (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
+             (list[i].expression_type == ARRAY_INDEX) or
+             (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
+             (list[i].expression_type == FUNCTION_PARAMETERS)) then
+         --do nothing
+      elseif(nil == list[i].t) then
+         set_inner_boolean_expressions(list[i],v)
+      end
+   end
+ end
+
 primary_expression = function(tok)
    local token_list = {}
    local inner_token_list = {}
@@ -2557,28 +2589,41 @@ primary_expression = function(tok)
          token = at(token_list,token)       
          inner_token_list.expression_type = COMPOUND_STATEMENT_WITHIN_EXPRESSION
       else
-         token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)
-         local close_parens_token = token
+         token, inner_token_list = expression(token); table.insert(token_list,inner_token_list) 
          --If an expression has multiple parenthesis surrounding it, be sure to instrument those
          --parenthesis.
          --e.g, ((a && b)) should be instrumented as 
-         --if((INST_MCDC(0,1,(INST_COND(0,1,a) && INST_COND(0,1,b)))))
-         --instead of
          --if(INST_MCDC(0,1,((INST_COND(0,1,a) && INST_COND(0,1,b)))))
+         --instead of
+         --if((INST_MCDC(0,1,(INST_COND(0,1,a) && INST_COND(0,1,b)))))
          if(has_child_boolean_expression(inner_token_list)) then
             open_parens_token.t = OPEN_EXPRESSION_PARENS
+            open_parens_token.coverage_enabled = CoverageEnabled
             token_list.line_number = token.line_number
             token_list.function_name = token.function_name
             token_list.expression_type = BOOLEAN_EXPRESSION
             token_list.coverage_enabled = CoverageEnabled
             token_list.decision_coverage = DecisionCoverage
             token_list.mcdc_coverage = MCDCCoverage
-            local prefix_expression = get_prefix_expression({inner_token_list})
-            token_list.prefix_expression = prefix_expression
-            remove_inner_boolean_expressions(token_list)  
+            local prefix_expression = get_prefix_expression(inner_token_list)
+            token_list.prefix_expression = prefix_expression    
             find_exclamation_mark_operators(token_list)
-            token = at(token_list,token,Tokens.TOK_CLOSEPAREN) 
-            close_parens_token.t = CLOSE_EXPRESSION_PARENS
+            token.t = CLOSE_EXPRESSION_PARENS
+            token.coverage_enabled = CoverageEnabled
+            token = at(token_list,token)
+            set_inner_boolean_expressions(token_list,nil)
+         elseif(has_child_relational_expression(inner_token_list)) then
+            token_list.line_number = token.line_number
+            token_list.function_name = token.function_name
+            token_list.expression_type = RELATIONAL_EXPRESSION
+            token_list.coverage_enabled = CoverageEnabled
+            token_list.decision_coverage = DecisionCoverage
+            token_list.mcdc_coverage = MCDCCoverage
+            local prefix_expression = get_prefix_expression(inner_token_list)
+            token_list.prefix_expression = prefix_expression    
+            find_exclamation_mark_operators(token_list)
+            token = at(token_list,token) 
+            set_inner_relational_expressions(token_list,nil) 
          else
             token = at(token_list,token,Tokens.TOK_CLOSEPAREN) 
          end 
@@ -2742,25 +2787,33 @@ unary_expression = function(tok)
 
    if(token.t == Tokens.TOK_EXCLAMATIONMARK) then
       token = at(token_list,token)  
-      token, inner_token_list = cast_expression(token); 
+      token, inner_token_list = cast_expression(token); table.insert(token_list,inner_token_list)
       --This works like this:  If we see a "!", and it is at the start of !(a && b), then we need
       --to call the whole thing a boolean expression.  So !(boolean expression) becomes (!boolean expression).
-      --and !!(boolean expression) !(!boolean expression) which becomes (!!boolean expression).
-      if(has_child_boolean_expression(inner_token_list)) then    
+      --and !!(boolean expression) which becomes (!!boolean expression).
+      if(has_child_boolean_expression(token_list)) then    
          token_list.line_number = token.line_number
-         token_list.function_name = token.function_name         
-         --2",token_list.expression_type)
+         token_list.function_name = token.function_name     
          token_list.expression_type = BOOLEAN_EXPRESSION
          token_list.coverage_enabled = CoverageEnabled
          token_list.decision_coverage = DecisionCoverage
          token_list.mcdc_coverage = MCDCCoverage         
-         local prefix_expression = get_prefix_expression({inner_token_list})
+         local prefix_expression = get_prefix_expression(token_list)
          token_list.prefix_expression = "!" .. prefix_expression
-         remove_inner_boolean_expressions(inner_token_list)
+         set_inner_boolean_expressions(token_list,nil)
+         find_exclamation_mark_operators(token_list)
+      elseif(has_child_relational_expression(token_list)) then    
+         token_list.line_number = token.line_number
+         token_list.function_name = token.function_name     
+         token_list.expression_type = RELATIONAL_EXPRESSION
+         token_list.coverage_enabled = CoverageEnabled
+         token_list.decision_coverage = DecisionCoverage
+         token_list.mcdc_coverage = MCDCCoverage         
+         local prefix_expression = get_prefix_expression(token_list)
+         token_list.prefix_expression = "!" .. prefix_expression
+         set_inner_relational_expressions(token_list,nil)
          find_exclamation_mark_operators(token_list)
       end
-      
-      table.insert(token_list,inner_token_list)
    elseif(nil ~= unary_operators[token.t]) then
       token = at(token_list,token)  
       token, inner_token_list = cast_expression(token); table.insert(token_list,inner_token_list)
@@ -2920,9 +2973,10 @@ get_prefix_expression = function(expression)
       if(list[i].expression_type == OPERAND) then
          return  "c"      
       elseif(list[i].expression_type == BOOLEAN_EXPRESSION) then 
-         return list[i].prefix_expression        
-      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
-            (list[i].expression_type == RELATIONAL_EXPRESSION) or                  
+         return list[i].prefix_expression      
+      elseif(list[i].expression_type == RELATIONAL_EXPRESSION) then 
+         return list[i].prefix_expression       
+      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or             
             (list[i].expression_type == CONDITIONAL_EXPRESSION) or                
             (list[i].expression_type == ARRAY_INDEX) or
             (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or             
@@ -2952,8 +3006,8 @@ and_expression = function(tok)
       function_name = token.function_name      
       found = true
       token.t = AND_OPERATOR
-
-      if(has_child_boolean_expression(inner_token_list1) == false) then    
+      
+      if(has_child_boolean_expression(inner_token_list1) == false) then   
          left_side = {
             expression_type = OPERAND,
             function_name = token.function_name,
@@ -2992,6 +3046,7 @@ and_expression = function(tok)
      token_list.coverage_enabled = CoverageEnabled
      token_list.decision_coverage = DecisionCoverage
      token_list.mcdc_coverage = MCDCCoverage     
+
      local prefix_expression_1 = get_prefix_expression({left_side})
      local prefix_expression_2 = get_prefix_expression({right_side})
  
@@ -3000,8 +3055,8 @@ and_expression = function(tok)
      end
      
      token_list.prefix_expression = "&" .. prefix_expression_1 .. prefix_expression_2
-     remove_inner_relational_expressions(token_list)     
-     remove_inner_boolean_expressions(token_list)
+     set_inner_relational_expressions(token_list,BOOLEAN_EXPRESSION)   
+     set_inner_boolean_expressions(token_list,nil)   
      find_exclamation_mark_operators(token_list)
    else
       table.insert(token_list,inner_token_list1)
@@ -3010,8 +3065,6 @@ and_expression = function(tok)
    return token, token_list  
 end
   
- 
- 
 or_expression = function(tok)
    local token_list = {}
    local found = false
@@ -3075,9 +3128,9 @@ or_expression = function(tok)
          error("File: " .. SrcFileName .. " Line: " .. token.line_number .. " Syntax Error.")
       end
 
-      token_list.prefix_expression = "|" .. prefix_expression_1 .. prefix_expression_2
-      remove_inner_relational_expressions(token_list)      
-      remove_inner_boolean_expressions(token_list)
+      token_list.prefix_expression = "|" .. prefix_expression_1 .. prefix_expression_2     
+      set_inner_relational_expressions(token_list,BOOLEAN_EXPRESSION)   
+      set_inner_boolean_expressions(token_list,nil)         
       find_exclamation_mark_operators(token_list)
    else
       table.insert(token_list,inner_token_list1)
@@ -3094,8 +3147,13 @@ conditional_expression = function(tok)
 
    if(token.t == Tokens.TOK_QUESTIONMARK) then
       found = true
-      remove_inner_relational_expressions(inner_token_list)
-      if(has_child_boolean_expression(inner_token_list) == false) then
+      --This handles the scenario where we have something like
+      --(a && b) ? 1 : 0 
+      --We don't want to intrument this twice, because just instrumenting the (a && b)
+      --is enough, so we check to see if the conditional expression is actually a boolean
+      --expession
+      if((has_child_boolean_expression(inner_token_list) == false) and 
+         (has_child_relational_expression(inner_token_list) == false)) then
          inner_token_list.line_number = token.line_number
          inner_token_list.function_name = token.function_name         
          inner_token_list.prefix_expression = "c"
@@ -3201,7 +3259,7 @@ if_statement = function(tok)
    local starting_line_number = 0
 
    insert_statement_coverage_command(token_list, token.line_number, token.function_name)
-   
+
    --consume the "if" 
    token = at(token_list,token)
    starting_line_number = token.line_number
@@ -3210,8 +3268,8 @@ if_statement = function(tok)
    token = at(token_list,token,Tokens.TOK_OPENPAREN)
 
    token, inner_token_list = expression(token);
-   remove_inner_relational_expressions(inner_token_list)
-   if(has_child_boolean_expression(inner_token_list) == false) then
+   if((has_child_boolean_expression(inner_token_list) == false) and 
+      (has_child_relational_expression(inner_token_list) == false)) then
       inner_token_list.line_number = starting_line_number
       inner_token_list.function_name = token.function_name        
       inner_token_list.prefix_expression = "c"
@@ -3222,7 +3280,6 @@ if_statement = function(tok)
       find_exclamation_mark_operators(inner_token_list)
    end
    table.insert(token_list,inner_token_list)   
-   
    --consume the ")"      
 
    token = at(token_list,token,Tokens.TOK_CLOSEPAREN)
@@ -3296,8 +3353,8 @@ for_statement = function(tok)
    else
       token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)
 
-      remove_inner_relational_expressions(inner_token_list)
-      if(has_child_boolean_expression(inner_token_list) == false) then
+      if((has_child_boolean_expression(inner_token_list) == false) and 
+         (has_child_relational_expression(inner_token_list) == false)) then
          inner_token_list.line_number = starting_line_number
          inner_token_list.function_name = token.function_name        
          inner_token_list.prefix_expression = "c"
@@ -3357,8 +3414,8 @@ while_statement = function(tok)
    token = at(token_list,token,Tokens.TOK_OPENPAREN)
      
    token, inner_token_list = expression(token);
-   remove_inner_relational_expressions(inner_token_list)
-   if(has_child_boolean_expression(inner_token_list) == false) then
+   if((has_child_boolean_expression(inner_token_list) == false) and 
+      (has_child_relational_expression(inner_token_list) == false)) then
       inner_token_list.line_number = starting_line_number
       inner_token_list.function_name = token.function_name        
       inner_token_list.prefix_expression = "c"
@@ -3423,8 +3480,8 @@ do_statement = function(tok)
      
    token, inner_token_list = expression(token);
    
-   remove_inner_relational_expressions(inner_token_list)
-   if(has_child_boolean_expression(inner_token_list) == false) then
+   if((has_child_boolean_expression(inner_token_list) == false) and 
+      (has_child_relational_expression(inner_token_list) == false)) then
       inner_token_list.line_number = starting_line_number
       inner_token_list.function_name = token.function_name        
       inner_token_list.prefix_expression = "c"
@@ -3572,7 +3629,7 @@ statement = function(tok)
    local inner_token_list = {}
    local token = tok
 
-   if(last_buffer_loc >= tok.buffer_loc) then
+   if((last_buffer_loc == nil) or (tok.buffer_loc == nil) or (last_buffer_loc >= tok.buffer_loc)) then
       last_buffer_loc_loop_detection_count = last_buffer_loc_loop_detection_count + 1
       if(last_buffer_loc_loop_detection_count > 10) then
          error("File: " .. SrcFileName .. " Line: " .. token.line_number .. " Error during parsing.")
@@ -4471,15 +4528,13 @@ has_child_boolean_expression = function(token_list)
    if(token_list.expression_type == BOOLEAN_EXPRESSION) then
       return true
    end
-
    --Otherwise, iterate through the token list looking for a boolean expression
    for i=1,#list do
       if(list[i].expression_type == BOOLEAN_EXPRESSION) then    
          return true
       elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
              (list[i].expression_type == RELATIONAL_EXPRESSION) or            
-             (list[i].expression_type == COMMA_EXPRESSION) or      
-             (list[i].expression_type == RELATIONAL_EXPRESSION) or                  
+             (list[i].expression_type == COMMA_EXPRESSION) or                     
              (list[i].expression_type == CONDITIONAL_EXPRESSION) or                
              (list[i].expression_type == ARRAY_INDEX) or
              (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or             
@@ -4487,6 +4542,38 @@ has_child_boolean_expression = function(token_list)
          --do nothing             
       elseif(nil == list[i].t) then
          return has_child_boolean_expression(list[i])
+      end
+   end
+
+   return false
+end
+
+has_child_relational_expression = function(token_list)
+   local list = token_list   
+
+   --Note:  we don't need to do iterate through the whole list.  We start from the front of the
+   --list and recursively check the list of tokens at the front of the list.  If we find there
+   --is no relational expression, then we return false.  This works out.  E.g, we want this function
+   --to return false for expressions like "a(b == c)", because this isn't itself a relational expression,
+   --and it isn't a condition within a relational expression.  
+   if(token_list.expression_type == RELATIONAL_EXPRESSION) then
+      return true
+   end
+
+   --Otherwise, iterate through the token list looking for a boolean expression
+   for i=1,#list do
+      if(list[i].expression_type == RELATIONAL_EXPRESSION) then    
+         return true
+      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or     
+             (list[i].expression_type == COMMA_EXPRESSION) or          
+             (list[i].expression_type == BOOLEAN_EXPRESSION) or                            
+             (list[i].expression_type == CONDITIONAL_EXPRESSION) or                
+             (list[i].expression_type == ARRAY_INDEX) or
+             (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or             
+             (list[i].expression_type == FUNCTION_PARAMETERS)) then
+         --do nothing             
+      elseif(nil == list[i].t) then
+         return has_child_relational_expression(list[i])
       end
    end
 
