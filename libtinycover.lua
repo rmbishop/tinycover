@@ -3196,6 +3196,16 @@ assignment_expression = function(tok)
    local token = tok
    local found = false
 
+   if((last_buffer_loc == nil) or (tok.buffer_loc == nil) or (last_buffer_loc >= tok.buffer_loc)) then
+      last_buffer_loc_loop_detection_count = last_buffer_loc_loop_detection_count + 1
+      if(last_buffer_loc_loop_detection_count > 10) then
+         error("File: " .. SrcFileName .. " Line: " .. token.line_number .. " Error during parsing.")
+      end
+   else
+      last_buffer_loc = tok.buffer_loc
+      last_buffer_loc_loop_detection_count = 0
+   end   
+
    token, inner_token_list = conditional_expression(token); table.insert(token_list,inner_token_list) 
 
    while(token.t == Tokens.TOK_ASSIGNMENT) do
@@ -3798,6 +3808,7 @@ single_token_specifier_qualifiers["extern"] = true
 single_token_specifier_qualifiers["inline"] = true   
 single_token_specifier_qualifiers["register"] = true
 single_token_specifier_qualifiers["restrict"] = true   
+single_token_specifier_qualifiers["size_t"] = true   
 
 is_single_token_specifier_qualifier = function(token)
    if((token ~= nil) and (single_token_specifier_qualifiers[token.v] ~= nil)) then
