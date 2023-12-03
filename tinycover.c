@@ -1,6 +1,6 @@
 /*Copyright notice is at bottom of file.*/
 
-#define TINY_COVER_VERSION "0.9.0"
+#define TINY_COVER_VERSION "0.9.1"
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
