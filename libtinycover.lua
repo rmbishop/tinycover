@@ -3811,6 +3811,7 @@ end
  multiple_token_specifier_qualifiers["union"] = union
  multiple_token_specifier_qualifiers["enum"] = enum
  multiple_token_specifier_qualifiers["typeof"] = typeof
+ multiple_token_specifier_qualifiers["__typeof"] = typeof 
  multiple_token_specifier_qualifiers["__typeof__"] = typeof
  multiple_token_specifier_qualifiers["asm"] = asm
  multiple_token_specifier_qualifiers["__asm"] = asm
