@@ -126,7 +126,8 @@ function tc_instrument(project_folder,source_file_name)
       return 1
    end
 
-   local c_text = f:read("*all")    
+   local c_text = f:read("*all")
+   f:close()
 
    if(nil == Coverage) then 
       Coverage = "MCDC+Statement" 
