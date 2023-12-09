@@ -1418,6 +1418,25 @@ typeof = function(tok)
  
    return token, token_list
  end
+
+ alignas = function(tok)
+   local token_list = {}
+   local inner_token_list = {}
+   local token = tok
+ 
+   --consume the 'alignas'
+   token = at(token_list,token)
+ 
+   --consume the (
+   token = at(token_list,token,Tokens.TOK_OPENPAREN)
+ 
+   token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)
+ 
+   --consume the first )
+   token = at(token_list,token,Tokens.TOK_CLOSEPAREN)
+ 
+   return token, token_list
+ end
  
 enum = function(tok)
    local token_list = {}
@@ -3828,7 +3847,9 @@ end
  multiple_token_specifier_qualifiers["asm"] = asm
  multiple_token_specifier_qualifiers["__asm"] = asm
  multiple_token_specifier_qualifiers["__asm__"] = asm
- 
+ multiple_token_specifier_qualifiers["_Alignas"] = alignas
+ multiple_token_specifier_qualifiers["alignas"] = alignas
+
  multiple_token_extension_keywords = {}
  multiple_token_extension_keywords["__attribute__"] = attribute
  multiple_token_extension_keywords["__attribute"] = attribute
