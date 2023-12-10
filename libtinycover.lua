@@ -1410,9 +1410,13 @@ typeof = function(tok)
  
    --consume the (
    token = at(token_list,token,Tokens.TOK_OPENPAREN)
- 
-   token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)
- 
+
+   if(is_specifier_qualifier(token)) then
+      token, inner_token_list = type_name(token); table.insert(token_list,inner_token_list)
+   else
+      token, inner_token_list = expression(token); table.insert(token_list,inner_token_list)
+   end
+
    --consume the first )
    token = at(token_list,token,Tokens.TOK_CLOSEPAREN)
  
