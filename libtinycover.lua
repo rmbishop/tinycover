@@ -3093,6 +3093,7 @@ and_expression = function(tok)
    local line_number
    local function_name
    local left_side, right_side
+   local starting_line_number = tok.line_number
    token, inner_token_list1 = bitwise_expression(tok)
  
    if(token.t == Tokens.TOK_AND) then
@@ -3134,7 +3135,7 @@ and_expression = function(tok)
    end
  
    if(found) then
-     token_list.line_number = line_number
+     token_list.line_number = starting_line_number
      token_list.function_name = function_name      
      token_list.expression_type = BOOLEAN_EXPRESSION
      token_list.coverage_enabled = CoverageEnabled
@@ -3168,6 +3169,7 @@ or_expression = function(tok)
    local line_number
    local function_name
    local left_side, right_side
+   local starting_line_number = tok.line_number
 
    token, inner_token_list1 = and_expression(tok)
 
@@ -3209,7 +3211,7 @@ or_expression = function(tok)
    end
 
    if(found) then
-      token_list.line_number = line_number
+      token_list.line_number = starting_line_number
       token_list.function_name = function_name 
       token_list.expression_type = BOOLEAN_EXPRESSION
       token_list.coverage_enabled = CoverageEnabled
