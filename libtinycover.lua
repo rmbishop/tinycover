@@ -1581,6 +1581,7 @@ builtin_offsetof = function(tok)
 
    --consume builtin_offsetof name
    token = at(token_list,token)
+
    --consume open parens
    token = at(token_list,token,Tokens.TOK_OPENPAREN) 
 
@@ -1592,6 +1593,45 @@ builtin_offsetof = function(tok)
 
    --consume expression
    token, inner_token_list = unary_expression(token); table.insert(token_list,inner_token_list)
+
+   --consume close parens
+   token = at(token_list,token,Tokens.TOK_CLOSEPAREN)    
+
+   return token, token_list
+end
+
+generic = function(tok)
+   local token_list = {}
+   local inner_token_list = {}
+   local token = tok
+
+   --consume _Generic
+   token = at(token_list,token); 
+
+   --consume open parens
+   token = at(token_list,token,Tokens.TOK_OPENPAREN); 
+
+   --consume expression (an assignment_expression is the same as an expression, sans the comma operator)
+   token, inner_token_list = assignment_expression(token); table.insert(token_list,inner_token_list)
+
+   while(token.t == Tokens.TOK_COMMA) do
+
+      --consume comma
+      token = at(token_list,token,Tokens.TOK_COMMA)
+
+      if(token.v == "default") then
+         token = at(token_list,token)
+      else
+         --consume a type name
+         token, inner_token_list = type_name(token); table.insert(token_list,inner_token_list)
+      end
+
+      --consume the ":"
+      token = at(token_list,token,Tokens.TOK_COLON)
+
+      --consume expression (an assignment_expression is the same as an expression, sans the comma operator)
+      token, inner_token_list = assignment_expression(token); table.insert(token_list,inner_token_list)
+   end
 
    --consume close parens
    token = at(token_list,token,Tokens.TOK_CLOSEPAREN)    
@@ -2656,6 +2696,8 @@ primary_expression = function(tok)
       token, inner_token_list = builtin_va_arg(token,nil); table.insert(token_list,inner_token_list)       
    elseif(token.v == "__builtin_offsetof") then
       token, inner_token_list = builtin_offsetof(token,nil); table.insert(token_list,inner_token_list)       
+   elseif(token.v == "_Generic") then
+      token, inner_token_list = generic(token); table.insert(token_list,inner_token_list)          
    elseif( (false == is_specifier_qualifier(token)) and (token.t == Tokens.TOK_WORD)) then
       identifier = token
       token = at(token_list,token)   
@@ -3240,7 +3282,6 @@ assignment_expression = function(tok)
    return token, token_list
 end
  
- --called from a bunch of things
 expression = function(tok)
    local token_list = {}
    local inner_token_list = {}
@@ -3264,7 +3305,7 @@ expression = function(tok)
 
    return token, token_list
 end
- 
+
 expression_statement = function(tok)
    local token_list = {}
    local inner_token_list = {}
