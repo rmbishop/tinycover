@@ -3658,6 +3658,13 @@ label_statement = function(tok)
     
       --consume the label name
       token = at(token_list,token)
+
+      while(token.t == Tokens.TOK_COMMA) do 
+         token = at(token_list,token)
+
+         --consume the label name
+         token = at(token_list,token)
+      end
        
       --consume the ";"
       token = at(token_list,token,Tokens.TOK_SEMICOLON)
