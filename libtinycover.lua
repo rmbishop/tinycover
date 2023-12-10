@@ -1573,6 +1573,32 @@ builtin_va_arg = function(tok)
 
    return token, token_list 
 end
+
+builtin_types_compatible_p = function(tok)
+   local token_list = {}
+   local inner_token_list = {}
+   local token = tok
+
+   --consume builtin_types_compatible_p
+   token = at(token_list,token)
+
+   --consume open parens
+   token = at(token_list,token,Tokens.TOK_OPENPAREN) 
+
+   --consume type 1
+   token, inner_token_list = type_name(token); table.insert(token_list,inner_token_list)
+
+   --consume comma
+   token = at(token_list,token,Tokens.TOK_COMMA)
+
+   --consume type 2
+   token, inner_token_list = type_name(token); table.insert(token_list,inner_token_list)
+
+   --consume close parens
+   token = at(token_list,token,Tokens.TOK_CLOSEPAREN)   
+
+   return token, token_list 
+end
  
 builtin_offsetof = function(tok)
    local token_list = {}
@@ -2697,7 +2723,9 @@ primary_expression = function(tok)
    elseif(token.v == "__builtin_offsetof") then
       token, inner_token_list = builtin_offsetof(token,nil); table.insert(token_list,inner_token_list)       
    elseif(token.v == "_Generic") then
-      token, inner_token_list = generic(token); table.insert(token_list,inner_token_list)          
+      token, inner_token_list = generic(token); table.insert(token_list,inner_token_list)     
+   elseif(token.v == "__builtin_types_compatible_p") then
+      token, inner_token_list = builtin_types_compatible_p(token); table.insert(token_list,inner_token_list)             
    elseif( (false == is_specifier_qualifier(token)) and (token.t == Tokens.TOK_WORD)) then
       identifier = token
       token = at(token_list,token)   
