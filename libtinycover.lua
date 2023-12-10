@@ -2971,6 +2971,7 @@ math_expression = function(tok)
 
    token, inner_token_list = cast_expression(token);table.insert(token_list,inner_token_list)
    if(nil ~= math_operator_list[token.t]) then
+      found = true
       token = at(token_list,token)
       token, inner_token_list = math_expression(token);table.insert(token_list,inner_token_list)
    end
