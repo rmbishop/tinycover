@@ -1,4 +1,51 @@
-tinycover can be used to instrument c source code for statement, decision, and mcdc coverage.  
+# Overview:  
+tinycover can be used to instrument c source code for statement, decision, and mcdc coverage.
+
+It works by taking C code like this:
+
+    if(a && (b || c))
+    {
+        printf("hello\n");
+    }
+
+  And 'instrumenting' it to create code like this:
+
+    COV_STATEMENT(0);
+    if(INST_MCDC(0,1,(INST_COND(0,1,a) && (INST_COND(0,2,b) || INST_COND(0,1,c)))))
+    {
+        COV_STATEMENT(5);
+        printf("hello\n");
+    }
+
+The intent behind this is that when you build this code and run it on your target, it produces data that you can use
+to generate a coverage report, which looks like this (depending on the values of a, b, and c during run-time)
+
+    MCDC {
+      Source_File_Name = "test_preprocessed.c",
+      Function_Name = "if_statement",
+      Simplified_Expression = "c1 && (c2 || c3)",
+      Actual_Expression = [=[a && (b || c)]=],
+      Array_Index = 1,
+      Number_Of_Conditions = 3,
+      Conditions_Covered = 1,
+      Full_Coverage_Achieved = "No",
+      Line_Number = 961,
+      Covered_Conditions = {"c2"},
+      Deficient_Conditions = {"c1","c3"},
+      Rows = {
+          {Row_ID = 1, Values = "F X X", Logic = false, Found = "No"},
+          {Row_ID = 2, Values = "T F F", Logic = false, Found = "Yes"},
+          {Row_ID = 3, Values = "T F T", Logic = true,  Found = "No"},
+          {Row_ID = 4, Values = "T T X", Logic = true,  Found = "Yes"},
+      },
+      Pairs = {
+          {Condition = "c1", True_Row = 3, False_Row = 1, Found = "No"},
+          {Condition = "c1", True_Row = 4, False_Row = 1, Found = "No"},
+          {Condition = "c2", True_Row = 4, False_Row = 2, Found = "Yes"},
+          {Condition = "c3", True_Row = 3, False_Row = 2, Found = "No"},
+        },
+    }
+
 
 # Instrumenting example_one:  
 
