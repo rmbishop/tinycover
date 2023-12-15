@@ -1604,6 +1604,36 @@ builtin_types_compatible_p = function(tok)
    return token, token_list 
 end
  
+static_assert = function(tok)
+   local token_list = {}
+   local inner_token_list = {}
+   local token = tok
+
+   --consume static_assert
+   token = at(token_list,token)
+
+   --consume open parens
+   token = at(token_list,token,Tokens.TOK_OPENPAREN) 
+
+   --consume the expression (this is an expression, without the comma handling)
+   token, inner_token_list = assignment_expression(token); table.insert(token_list,inner_token_list)
+
+   if(token.t == Tokens.TOK_COMMA) then
+
+      --consume comma
+      token = at(token_list,token,Tokens.TOK_COMMA)
+      
+      --consume the message
+      token = at(token_list,token)
+   end
+
+   --consume close parens
+   token = at(token_list,token,Tokens.TOK_CLOSEPAREN)   
+
+   return token, token_list 
+end
+ 
+
 builtin_offsetof = function(tok)
    local token_list = {}
    local inner_token_list = {}
@@ -4549,6 +4579,9 @@ external_declaration = function(tok)
             add_idents(declarator_names,typedef_found)
             get_all_declarators = false
             declarator_names = {}
+         elseif(token.v == "_Static_assert") then
+            token, inner_token_list = static_assert(token); table.insert(token_list,inner_token_list)      
+            token = at(token_list,token,Tokens.TOK_SEMICOLON)           
          elseif(token.t == Tokens.TOK_OPENBRACE) then    
             --It is a function, so the last declarator_name
             --found is the function name
