@@ -1615,8 +1615,12 @@ static_assert = function(tok)
    --consume open parens
    token = at(token_list,token,Tokens.TOK_OPENPAREN) 
 
+   CoverageEnabled = false
+
    --consume the expression (this is an expression, without the comma handling)
    token, inner_token_list = assignment_expression(token); table.insert(token_list,inner_token_list)
+
+   CoverageEnabled = true
 
    if(token.t == Tokens.TOK_COMMA) then
 
@@ -2759,7 +2763,9 @@ primary_expression = function(tok)
    elseif(token.v == "_Generic") then
       token, inner_token_list = generic(token); table.insert(token_list,inner_token_list)     
    elseif(token.v == "__builtin_types_compatible_p") then
-      token, inner_token_list = builtin_types_compatible_p(token); table.insert(token_list,inner_token_list)             
+      token, inner_token_list = builtin_types_compatible_p(token); table.insert(token_list,inner_token_list)    
+   elseif(token.v == "_Static_assert") then
+      token, inner_token_list = static_assert(token); table.insert(token_list,inner_token_list)                  
    elseif( (false == is_specifier_qualifier(token)) and (token.t == Tokens.TOK_WORD)) then
       identifier = token
       token = at(token_list,token)   
