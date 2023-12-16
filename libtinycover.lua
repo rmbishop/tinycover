@@ -1608,6 +1608,7 @@ static_assert = function(tok)
    local token_list = {}
    local inner_token_list = {}
    local token = tok
+   local saved_CoverageEnabled = CoverageEnabled
 
    --consume static_assert
    token = at(token_list,token)
@@ -1620,7 +1621,7 @@ static_assert = function(tok)
    --consume the expression (this is an expression, without the comma handling)
    token, inner_token_list = assignment_expression(token); table.insert(token_list,inner_token_list)
 
-   CoverageEnabled = true
+   CoverageEnabled = saved_CoverageEnabled
 
    if(token.t == Tokens.TOK_COMMA) then
 
