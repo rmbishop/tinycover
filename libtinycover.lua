@@ -89,6 +89,7 @@ local CONDITIONAL_EXPRESSION = 62
 local INSERT_STATEMENT_COVERAGE = 63
 local COMPOUND_STATEMENT_WITHIN_EXPRESSION = 65
 local RELATIONAL_EXPRESSION = 66
+local CAST_TYPE_NAME = 67
 
 local TokenTextDebug = {}
 TokenTextDebug[Tokens.TOK_NUMBER] = ""
@@ -1353,7 +1354,8 @@ set_inner_relational_expressions = function(token_list,v)
          (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
          (list[i].expression_type == ARRAY_INDEX) or
          (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
-         (list[i].expression_type == FUNCTION_PARAMETERS)) then
+         (list[i].expression_type == FUNCTION_PARAMETERS) or
+         (list[i].expression_type == CAST_TYPE_NAME)) then    
          --do nothing      
       elseif(nil == list[i].t) then
          set_inner_relational_expressions(list[i],v)
@@ -1373,10 +1375,32 @@ set_inner_boolean_expressions = function(token_list, v)
              (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
              (list[i].expression_type == ARRAY_INDEX) or
              (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
-             (list[i].expression_type == FUNCTION_PARAMETERS)) then
+             (list[i].expression_type == FUNCTION_PARAMETERS) or
+             (list[i].expression_type == CAST_TYPE_NAME)) then    
          --do nothing
       elseif(nil == list[i].t) then
          set_inner_boolean_expressions(list[i],v)
+      end
+   end
+ end
+
+ set_inner_cast_type_name = function(token_list, v)
+   local list = token_list   
+   
+   for i=1,#list do
+      if(list[i].expression_type == CAST_TYPE_NAME) then
+         list[i].expression_type = v
+      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
+             (list[i].expression_type == COMMA_EXPRESSION) or      
+             (list[i].expression_type == RELATIONAL_EXPRESSION) or               
+             (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
+             (list[i].expression_type == ARRAY_INDEX) or
+             (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
+             (list[i].expression_type == FUNCTION_PARAMETERS) or
+             (list[i].expression_type == BOOLEAN_EXPRESSION)) then    
+         --do nothing
+      elseif(nil == list[i].t) then
+         set_inner_cast_type_name(list[i],v)
       end
    end
  end
@@ -1390,7 +1414,8 @@ set_inner_boolean_expressions = function(token_list, v)
          (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
          (list[i].expression_type == ARRAY_INDEX) or
          (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
-         (list[i].expression_type == FUNCTION_PARAMETERS)) then
+         (list[i].expression_type == FUNCTION_PARAMETERS) or
+         (list[i].expression_type == CAST_TYPE_NAME)) then    
          --do nothing
       elseif(list[i].t == Tokens.TOK_EXCLAMATIONMARK) then
          list[i].t = EXCLAMATION_MARK_OPERATOR         
@@ -2673,26 +2698,6 @@ argument_expression_list = function(tok)
    return token, token_list
 end
  
-set_inner_boolean_expressions = function(token_list, v)
-   local list = token_list   
-   
-   for i=1,#list do
-      if(list[i].expression_type == BOOLEAN_EXPRESSION) then
-         list[i].expression_type = v
-      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or 
-             (list[i].expression_type == COMMA_EXPRESSION) or      
-             (list[i].expression_type == RELATIONAL_EXPRESSION) or               
-             (list[i].expression_type == CONDITIONAL_EXPRESSION) or  
-             (list[i].expression_type == ARRAY_INDEX) or
-             (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or 
-             (list[i].expression_type == FUNCTION_PARAMETERS)) then
-         --do nothing
-      elseif(nil == list[i].t) then
-         set_inner_boolean_expressions(list[i],v)
-      end
-   end
- end
-
 primary_expression = function(tok)
    local token_list = {}
    local inner_token_list = {}
@@ -2748,6 +2753,10 @@ primary_expression = function(tok)
             find_exclamation_mark_operators(token_list)
             token = at(token_list,token) 
             set_inner_relational_expressions(token_list,nil) 
+         elseif(has_child_cast_type_name(inner_token_list)) then
+               token_list.expression_type = CAST_TYPE_NAME     
+               token = at(token_list,token)      
+               set_inner_cast_type_name(token_list,nil) 
          else
             token = at(token_list,token,Tokens.TOK_CLOSEPAREN) 
          end 
@@ -2887,6 +2896,8 @@ cast_expression = function(tok)
          token = at(token_list,token)
          token, inner_token_list = type_name(token); table.insert(token_list,inner_token_list)        
          --consume the )
+
+         inner_token_list.expression_type = CAST_TYPE_NAME
 
          token = at(token_list,token,Tokens.TOK_CLOSEPAREN)
 
@@ -3115,6 +3126,8 @@ get_prefix_expression = function(expression)
          return "c"
       elseif(list[i].expression_type == COMMA_EXPRESSION) then 
         --skip comma expressions           
+      elseif(list[i].expression_type == CAST_TYPE_NAME) then         
+        --in (int)(a && b), skip the (int)  
       elseif(nil == list[i].t) then
          return get_prefix_expression(list[i])
       end
@@ -4677,13 +4690,14 @@ end
 
 has_child_boolean_expression = function(token_list)
    local list = token_list   
-   local result = false
 
    --Note:  we don't need to do iterate through the whole list.  We start from the front of the
    --list and recursively check the list of tokens at the front of the list.  If we find there
    --is no boolean expression, then we return false.  This works out.  E.g, we want this function
    --to return false for expressions like "a(b && c)", because this isn't itself a boolean expression,
-   --and it isn't a condition within a boolean expression.  
+   --and it isn't a condition within a boolean expression.  For cast expressions, we want the following
+   --expression to return true:  (int)(a && b).  To enable this, we must skip the (int), which we call
+   --a 'CAST_TYPE_NAME'.
    if(token_list.expression_type == BOOLEAN_EXPRESSION) then
       return true
    end
@@ -4697,7 +4711,8 @@ has_child_boolean_expression = function(token_list)
              (list[i].expression_type == CONDITIONAL_EXPRESSION) or                
              (list[i].expression_type == ARRAY_INDEX) or
              (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or             
-             (list[i].expression_type == FUNCTION_PARAMETERS)) then
+             (list[i].expression_type == FUNCTION_PARAMETERS) or
+             (list[i].expression_type == CAST_TYPE_NAME)) then         
          --do nothing             
       elseif(nil == list[i].t) then
          return has_child_boolean_expression(list[i])
@@ -4729,10 +4744,43 @@ has_child_relational_expression = function(token_list)
              (list[i].expression_type == CONDITIONAL_EXPRESSION) or                
              (list[i].expression_type == ARRAY_INDEX) or
              (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or             
-             (list[i].expression_type == FUNCTION_PARAMETERS)) then
+             (list[i].expression_type == FUNCTION_PARAMETERS) or
+             (list[i].expression_type == CAST_TYPE_NAME)) then    
          --do nothing             
       elseif(nil == list[i].t) then
          return has_child_relational_expression(list[i])
+      end
+   end
+
+   return false
+end
+
+has_child_cast_type_name = function(token_list)
+   local list = token_list   
+
+   --Note:  we don't need to do iterate through the whole list.  We start from the front of the
+   --list and recursively check the list of tokens at the front of the list.  If we find there
+   --is no cast type e.g (int) then we return false.  The goal is to ensure that this function
+   --returns true if it sees type names buried in parens.
+   if(token_list.expression_type == CAST_TYPE_NAME) then
+      return true
+   end
+
+   --Otherwise, iterate through the token list looking for a boolean expression
+   for i=1,#list do
+      if(list[i].expression_type == CAST_TYPE_NAME) then    
+         return true
+      elseif((list[i].expression_type == NON_LOGICAL_EXPRESSION) or     
+             (list[i].expression_type == COMMA_EXPRESSION) or    
+             (list[i].expression_type == RELATIONAL_EXPRESSION) or                          
+             (list[i].expression_type == BOOLEAN_EXPRESSION) or                            
+             (list[i].expression_type == CONDITIONAL_EXPRESSION) or                
+             (list[i].expression_type == ARRAY_INDEX) or
+             (list[i].expression_type == COMPOUND_STATEMENT_WITHIN_EXPRESSION) or             
+             (list[i].expression_type == FUNCTION_PARAMETERS)) then  
+         --do nothing             
+      elseif(nil == list[i].t) then
+         return has_child_cast_type_name(list[i])
       end
    end
 
