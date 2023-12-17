@@ -3064,9 +3064,9 @@ math_expression = function(tok)
 end
     
 local bitwise_operator_list = {}
-math_operator_list[Tokens.TOK_BITWISEOR] = 1
-math_operator_list[Tokens.TOK_AMPERSAND] = 1
-math_operator_list[Tokens.TOK_EXCLUSIVEOR] = 1
+bitwise_operator_list[Tokens.TOK_BITWISEOR] = 1
+bitwise_operator_list[Tokens.TOK_AMPERSAND] = 1
+bitwise_operator_list[Tokens.TOK_EXCLUSIVEOR] = 1
 
 bitwise_expression = function(tok)
    local token_list = {}
@@ -3076,6 +3076,7 @@ bitwise_expression = function(tok)
 
    token, inner_token_list = relational_expression(token);table.insert(token_list,inner_token_list)
    if(nil ~= bitwise_operator_list[token.t]) then
+      found = true
       token = at(token_list,token)
       token, inner_token_list = bitwise_expression(token);table.insert(token_list,inner_token_list)
    end
@@ -3095,6 +3096,7 @@ shift_expression = function(tok)
 
    token, inner_token_list = math_expression(token);table.insert(token_list,inner_token_list)
    if(Tokens.TOK_SHIFT == token.t) then
+      found = true
       token = at(token_list,token)
       token, inner_token_list = shift_expression(token);table.insert(token_list,inner_token_list)
    end
